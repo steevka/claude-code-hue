@@ -8,10 +8,10 @@ Inspired by [bobek-balinek/claude-lamp](https://github.com/bobek-balinek/claude-
 
 | State | Lamps show | Triggered by |
 |---|---|---|
-| **Working** | Blue ↔ purple breathing | `UserPromptSubmit`, `PreToolUse` |
-| **Idle** | Solid warm amber | `SessionStart`, `Stop` |
-| **Needs input** | Solid amber + brief green flash every 10s | `Notification` (permission requests; idle-timeout filtered out) |
-| **Off** | Lamps off | `SessionEnd` |
+| **Working** | Blue ↔ purple breathing | Prompt submit, tool use (Bash, Read, Write, Edit, Grep, WebFetch, etc.) |
+| **Idle** | Solid warm amber | Claude finishes responding, session start, idle prompt |
+| **Needs input** | Amber 5s ↔ purple 2s pulsing | Permission request, plan approval, question, notification |
+| **Off** | Lamps off | Session end |
 
 Multi-session aware: if you have several Claude Code tabs open, the lamps reflect the highest-priority state across all of them. So one tab idling while another is mid-tool-call still shows the working animation.
 
@@ -86,15 +86,20 @@ The visual is deliberately subtle: solid amber base (looks identical to idle mos
 
 Tune via `INPUT_FLASH_HUE`, `INPUT_BASE_HOLD_SECS`, `INPUT_FLASH_HOLD_SECS` in `hue_config.sh`.
 
-## Why these hooks (and not others)
+## Hook coverage
 
-The default install wires `SessionStart`, `UserPromptSubmit`, `PreToolUse`, `Stop`, and `SessionEnd`. We deliberately leave out:
+Pattern lifted from [bobek-balinek/claude-lamp](https://github.com/bobek-balinek/claude-lamp). The default install wires:
 
-- **`Notification`** — fires on idle timeout in addition to permission prompts, causing phantom pulses
-- **`PostToolUse`** — fires on every tool completion, would create chatter against the working animation
-- **`SubagentStop`** — fires inside subagent runs that are still part of an active session
+- `SessionStart` → idle
+- `UserPromptSubmit` → working
+- `Stop` → idle
+- `SessionEnd` → off
+- `PreToolUse` per-tool: most tools (Bash, Read, Write, Edit, Grep, etc.) → working; `AskUserQuestion`, `ExitPlanMode` → needs_input
+- `PostToolUse` for `AskUserQuestion` → needs_input
+- `PermissionRequest` → needs_input
+- `Notification` with matchers: `permission_prompt|elicitation_dialog` → needs_input; `idle_prompt` → idle
 
-The five enabled hooks give a clean working / idle / off cycle with no surprises.
+The Notification matcher is the key trick. Claude Code fires `Notification` for both real attention events (permission, elicitation) and idle-timeout (`idle_prompt`). Routing `idle_prompt` to `idle` (not `needs_input`) keeps the lamps from pulsing every minute you walk away to read a long response.
 
 ## Files
 

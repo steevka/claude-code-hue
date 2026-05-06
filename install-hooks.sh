@@ -1,6 +1,11 @@
 #!/bin/bash
 # claude-code-hue → wire hook entries into ~/.claude/settings.json.
-# Shows a diff before changing anything. User confirms with y/N.
+#
+# Idempotent: re-running this script removes any existing claude-code-hue
+# entries first, then writes the current set. Lets you upgrade without
+# accumulating duplicates when we add or change hook coverage.
+#
+# Other unrelated hooks in your settings.json are left untouched.
 
 set -e
 
@@ -26,11 +31,9 @@ fi
 mkdir -p "$(dirname "$SETTINGS")"
 [ -f "$SETTINGS" ] || echo '{}' > "$SETTINGS"
 
-# Backup
 BACKUP="${SETTINGS}.bak.$(date +%Y%m%d-%H%M%S)"
 cp "$SETTINGS" "$BACKUP"
 
-# Compute proposed merge with python3
 PROPOSED=$(HOOK_PATH="$HOOK" python3 - "$SETTINGS" <<'PY'
 import json, os, sys
 
@@ -43,39 +46,77 @@ with open(settings_path) as f:
 cfg.setdefault('hooks', {})
 hooks = cfg['hooks']
 
-ENTRIES = {
-    'SessionStart':     f'{hook} idle',
-    'UserPromptSubmit': f'{hook} working',
-    'PreToolUse':       f'{hook} working',
-    'Notification':     f'{hook} needs_input',
-    'Stop':             f'{hook} idle',
-    'SessionEnd':       f'{hook} off',
+# Tools that mean "Claude is doing work"
+WORKING_TOOLS = [
+    'Bash', 'Read', 'Write', 'Edit', 'MultiEdit',
+    'Glob', 'Grep', 'WebFetch', 'WebSearch',
+    'Task', 'NotebookEdit', 'Skill', 'EnterPlanMode',
+]
+# Tools that mean "Claude is pausing for the user"
+INPUT_TOOLS = ['AskUserQuestion', 'ExitPlanMode']
+
+def cmd(state):
+    return {'type': 'command', 'command': f'{hook} {state}'}
+
+def entry(state, matcher=None):
+    e = {'hooks': [cmd(state)]}
+    if matcher:
+        e['matcher'] = matcher
+    return e
+
+NEW_HOOKS = {
+    'SessionStart':     [entry('idle')],
+    'UserPromptSubmit': [entry('working')],
+    'Stop':             [entry('idle')],
+    'SessionEnd':       [entry('off')],
+    'PreToolUse':
+        [entry('working', t) for t in WORKING_TOOLS] +
+        [entry('needs_input', t) for t in INPUT_TOOLS],
+    'PostToolUse':      [entry('needs_input', 'AskUserQuestion')],
+    'PermissionRequest':[entry('needs_input')],
+    'Notification': [
+        entry('needs_input', 'permission_prompt|elicitation_dialog'),
+        entry('idle',        'idle_prompt'),
+    ],
 }
 
-added = []
-for event, command in ENTRIES.items():
-    arr = hooks.setdefault(event, [])
-    # Skip if already present (idempotent re-run)
-    already = any(
-        any(h.get('command') == command for h in entry.get('hooks', []))
-        for entry in arr
-    )
-    if not already:
-        arr.append({'hooks': [{'type': 'command', 'command': command}]})
-        added.append(event)
+# Strip any prior claude-code-hue entries (commands containing the hook path's basename).
+# Leaves all unrelated hooks (buddy, caveman, etc.) intact.
+def is_ours(entry_):
+    for h in entry_.get('hooks', []):
+        c = h.get('command', '')
+        if 'claude-code-hue' in c or 'hue_hook.sh' in c:
+            return True
+    return False
 
-print('---ADDED---')
-print('\n'.join(added) if added else '(nothing — all hooks already wired)')
+removed = 0
+for event in list(hooks.keys()):
+    before = len(hooks[event])
+    hooks[event] = [e for e in hooks[event] if not is_ours(e)]
+    removed += before - len(hooks[event])
+    if not hooks[event]:
+        del hooks[event]
+
+# Add fresh entries
+added = 0
+for event, entries in NEW_HOOKS.items():
+    arr = hooks.setdefault(event, [])
+    arr.extend(entries)
+    added += len(entries)
+
+print('---SUMMARY---')
+print(f'removed: {removed}')
+print(f'added: {added}')
 print('---SETTINGS---')
 print(json.dumps(cfg, indent=2))
 PY
 )
 
-ADDED=$(printf '%s' "$PROPOSED" | sed -n '/^---ADDED---$/,/^---SETTINGS---$/p' | sed '1d;$d')
+SUMMARY=$(printf '%s' "$PROPOSED" | sed -n '/^---SUMMARY---$/,/^---SETTINGS---$/p' | sed '1d;$d')
 NEW_JSON=$(printf '%s' "$PROPOSED" | sed -n '/^---SETTINGS---$/,$p' | sed '1d')
 
-bold "Proposed additions to $SETTINGS:"
-echo "$ADDED" | sed 's/^/  + /'
+bold "Proposed changes to $SETTINGS:"
+echo "$SUMMARY" | sed 's/^/  /'
 echo
 read -r -p "Apply these changes? [y/N] " ANSWER
 case "$ANSWER" in
@@ -89,27 +130,5 @@ case "$ANSWER" in
   *)
     rm -f "$BACKUP"
     echo "Aborted. Settings unchanged."
-    echo
-    bold "If you'd rather paste the snippet manually, here it is:"
-    echo
-    HOOK_PATH="$HOOK" python3 - <<'PY'
-import json, os
-hook = os.environ['HOOK_PATH']
-ENTRIES = {
-    'SessionStart':     f'{hook} idle',
-    'UserPromptSubmit': f'{hook} working',
-    'PreToolUse':       f'{hook} working',
-    'Notification':     f'{hook} needs_input',
-    'Stop':             f'{hook} idle',
-    'SessionEnd':       f'{hook} off',
-}
-snippet = {
-    'hooks': {
-        event: [{'hooks': [{'type': 'command', 'command': cmd}]}]
-        for event, cmd in ENTRIES.items()
-    }
-}
-print(json.dumps(snippet, indent=2))
-PY
     ;;
 esac
