@@ -30,20 +30,35 @@ mkdir -p "$SESSION_DIR"
 STATE="${1:-}"
 [ -z "$STATE" ] && { echo "usage: $0 <working|idle|needs_input|off>" >&2; exit 1; }
 
-# Identify session via Claude Code stdin JSON; fall back to PID for manual calls
+# Parse Claude Code stdin JSON for session_id and (for Notification hooks) message.
+# Falls back to PID for manual calls (no stdin).
 SESSION_ID=""
+NOTIF_MESSAGE=""
 if [ ! -t 0 ]; then
   INPUT=$(cat)
-  SESSION_ID=$(printf '%s' "$INPUT" | python3 -c "
+  PARSED=$(printf '%s' "$INPUT" | python3 -c "
 import sys, json
 try:
     d = json.load(sys.stdin)
     print(d.get('session_id', ''))
+    print(d.get('message', ''))
 except Exception:
-    pass
+    print('')
+    print('')
 " 2>/dev/null)
+  SESSION_ID=$(printf '%s' "$PARSED" | sed -n '1p')
+  NOTIF_MESSAGE=$(printf '%s' "$PARSED" | sed -n '2p')
 fi
 [ -z "$SESSION_ID" ] && SESSION_ID="manual-$$"
+
+# Filter out Claude Code's idle-timeout notification ("waiting for your input"),
+# which fires after ~60s of inactivity even when no permission is needed.
+# Real permission requests and other actionable notifications still pass through.
+if [ "$STATE" = "needs_input" ] && [ -n "$NOTIF_MESSAGE" ]; then
+  if echo "$NOTIF_MESSAGE" | grep -qiE "waiting for your input|waiting for input"; then
+    exit 0
+  fi
+fi
 
 SESSION_FILE="$SESSION_DIR/${SESSION_ID}.state"
 

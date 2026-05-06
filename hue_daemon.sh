@@ -57,10 +57,12 @@ while true; do
       sleep "$WORKING_HOLD_SECS"
       ;;
     needs_input)
-      put "{\"on\":true,\"hue\":${INPUT_HUE},\"sat\":${INPUT_SAT},\"bri\":${INPUT_BRI_HIGH},\"transitiontime\":${INPUT_FADE_DECISECONDS}}"
-      sleep "$INPUT_HOLD_SECS"
-      put "{\"on\":true,\"hue\":${INPUT_HUE},\"sat\":${INPUT_SAT},\"bri\":${INPUT_BRI_LOW},\"transitiontime\":${INPUT_FADE_DECISECONDS}}"
-      sleep "$INPUT_HOLD_SECS"
+      # Solid amber base
+      put "{\"on\":true,\"hue\":${INPUT_HUE},\"sat\":${INPUT_SAT},\"bri\":${INPUT_BRI},\"transitiontime\":${INPUT_TRANSITION_DECISECONDS}}"
+      sleep "$INPUT_BASE_HOLD_SECS"
+      # Brief flash in contrast color
+      put "{\"on\":true,\"hue\":${INPUT_FLASH_HUE},\"sat\":${INPUT_SAT},\"bri\":${INPUT_FLASH_BRI},\"transitiontime\":${INPUT_TRANSITION_DECISECONDS}}"
+      sleep "$INPUT_FLASH_HOLD_SECS"
       ;;
     *)
       rm -f "$PID_FILE"

@@ -47,6 +47,7 @@ ENTRIES = {
     'SessionStart':     f'{hook} idle',
     'UserPromptSubmit': f'{hook} working',
     'PreToolUse':       f'{hook} working',
+    'Notification':     f'{hook} needs_input',
     'Stop':             f'{hook} idle',
     'SessionEnd':       f'{hook} off',
 }
@@ -98,6 +99,7 @@ ENTRIES = {
     'SessionStart':     f'{hook} idle',
     'UserPromptSubmit': f'{hook} working',
     'PreToolUse':       f'{hook} working',
+    'Notification':     f'{hook} needs_input',
     'Stop':             f'{hook} idle',
     'SessionEnd':       f'{hook} off',
 }
