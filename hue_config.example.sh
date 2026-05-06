@@ -51,8 +51,16 @@ OFF_TRANSITION=4             # 400ms fade out
 # Animation daemon auto-exits after this many seconds as a failsafe.
 DAEMON_MAX_RUNTIME=1800      # 30 minutes
 
-# Drop any per-session state file untouched for this many minutes.
-# Catches sessions closed via Cmd+Q / terminal close that never fired
-# SessionEnd. Lower = quicker cleanup of ghost states; higher = tolerates
-# longer reading pauses without dropping you out of the aggregate.
-SESSION_STALE_MINS=15
+# Per-state expiration (seconds). When a session's last update is older
+# than its state's threshold, the file is dropped from the aggregate and
+# deleted. This is what catches tabs closed via Cmd+Q / terminal close
+# that never fire SessionEnd — without needing a manual reset.
+#
+# Defaults reflect natural lifetimes:
+#   - "working" should resolve within seconds via Stop; 10 min covers long
+#     tool runs (big bash builds, network fetches) but kills ghost states
+#   - "needs_input" can wait longer (you walked away from a permission prompt)
+#   - "idle" is the resting state — keep effectively indefinite
+WORKING_MAX_AGE_SECS=600       # 10 minutes
+NEEDS_INPUT_MAX_AGE_SECS=1800  # 30 minutes
+IDLE_MAX_AGE_SECS=86400        # 24 hours (final cleanup failsafe)

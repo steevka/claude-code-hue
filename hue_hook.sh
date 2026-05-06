@@ -54,17 +54,55 @@ else
   echo "$STATE" > "$SESSION_FILE"
 fi
 
-# Failsafe: drop any stale session files (mtime > SESSION_STALE_MINS).
-# Catches tabs closed via Cmd+Q / terminal close, which never fire SessionEnd.
-find "$SESSION_DIR" -name "*.state" -type f -mmin +"${SESSION_STALE_MINS:-15}" -delete 2>/dev/null
+# Aggregate by priority, with per-state expiration that actively prunes
+# dead sessions (e.g. a tab closed via Cmd+Q without SessionEnd firing).
+# A 'working' state should resolve within seconds via Stop; if it hasn't
+# in WORKING_MAX_AGE_SECS, the session is dead and we drop the file now.
 
-# Aggregate by priority
-ALL_STATES=$(cat "$SESSION_DIR"/*.state 2>/dev/null || true)
-if echo "$ALL_STATES" | grep -qx "needs_input"; then
+mtime() {
+  stat -f %m "$1" 2>/dev/null || stat -c %Y "$1" 2>/dev/null
+}
+
+NOW=$(date +%s)
+ACTIVE_NEEDS=0 ACTIVE_WORKING=0 ACTIVE_IDLE=0
+
+for SF in "$SESSION_DIR"/*.state; do
+  [ -f "$SF" ] || continue
+  S=$(cat "$SF" 2>/dev/null) || continue
+  AGE=$((NOW - $(mtime "$SF")))
+
+  case "$S" in
+    needs_input)
+      if [ "$AGE" -lt "${NEEDS_INPUT_MAX_AGE_SECS:-1800}" ]; then
+        ACTIVE_NEEDS=1
+      else
+        rm -f "$SF"
+      fi
+      ;;
+    working)
+      if [ "$AGE" -lt "${WORKING_MAX_AGE_SECS:-600}" ]; then
+        ACTIVE_WORKING=1
+      else
+        rm -f "$SF"
+      fi
+      ;;
+    idle)
+      # Idle is the resting state — never expires for aggregation,
+      # but still gets cleaned up after IDLE_MAX_AGE_SECS as a final failsafe.
+      if [ "$AGE" -lt "${IDLE_MAX_AGE_SECS:-86400}" ]; then
+        ACTIVE_IDLE=1
+      else
+        rm -f "$SF"
+      fi
+      ;;
+  esac
+done
+
+if [ "$ACTIVE_NEEDS" = 1 ]; then
   AGGREGATE=needs_input
-elif echo "$ALL_STATES" | grep -qx "working"; then
+elif [ "$ACTIVE_WORKING" = 1 ]; then
   AGGREGATE=working
-elif echo "$ALL_STATES" | grep -qx "idle"; then
+elif [ "$ACTIVE_IDLE" = 1 ]; then
   AGGREGATE=idle
 else
   AGGREGATE=off

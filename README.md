@@ -132,9 +132,10 @@ Runtime state lives in `/tmp/claude_hue/` — one file per active Claude Code se
 - Check that hooks were added: `grep claude-code-hue ~/.claude/settings.json`
 
 **Stuck on one color, or phantom "working" pulse when nothing is running.**
-- Most common cause: a Claude Code tab was closed via Cmd+Q or terminal-close, which doesn't fire `SessionEnd`. The session's last state lingers in the aggregate until cleanup.
-- Quick fix: `bash reset.sh` — kills the daemon, wipes runtime state, returns lamps to idle.
-- Tunable: lower `SESSION_STALE_MINS` in `hue_config.sh` (default 15) for faster auto-cleanup of ghost sessions.
+- A Claude Code tab closed via Cmd+Q or terminal-close doesn't fire `SessionEnd`, so the session's last state would otherwise hang around.
+- The aggregator prunes these automatically: `working` states older than `WORKING_MAX_AGE_SECS` (default 10 min) get dropped on the next hook fire. Lights self-correct as soon as another session triggers any hook event.
+- If you want it to clear faster, lower `WORKING_MAX_AGE_SECS` in `hue_config.sh`.
+- Last resort if something genuinely goes sideways: `bash reset.sh` (kills daemon, wipes runtime state).
 
 **Pulsing constantly when no prompt is waiting.**
 - You probably wired the `Notification` hook. Remove it (see "Enable the needs input pulse" above for context — Claude Code fires `Notification` on idle timeout, not just permission prompts).
