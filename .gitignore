@@ -1,0 +1,9 @@
+# Personal config — contains your Hue Bridge IP and app key
+hue_config.sh
+
+# Editor / OS
+.DS_Store
+*.swp
+*~
+.vscode/
+.idea/
