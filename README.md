@@ -117,6 +117,7 @@ claude-code-hue/
 ├── hue_config.example.sh # template; copy to hue_config.sh manually if not using setup.sh
 ├── setup.sh             # interactive bridge discovery + key creation + light picker
 ├── install-hooks.sh     # merges hook entries into ~/.claude/settings.json
+├── reset.sh             # wipe runtime state, kill daemon, return to idle
 ├── LICENSE
 └── README.md
 ```
@@ -130,9 +131,10 @@ Runtime state lives in `/tmp/claude_hue/` — one file per active Claude Code se
 - Run `bash hue_hook.sh idle` from the terminal — should make lamps go amber. If that fails, the hooks aren't the problem; the script + bridge connection is.
 - Check that hooks were added: `grep claude-code-hue ~/.claude/settings.json`
 
-**Stuck on one color.**
-- Daemon may be running with a stale state. Reset: `~/.claude/hue_hooks/hue_hook.sh off` then a fresh state.
-- Or hard reset: `rm -rf /tmp/claude_hue /tmp/claude_hue_state /tmp/claude_hue_daemon.pid`
+**Stuck on one color, or phantom "working" pulse when nothing is running.**
+- Most common cause: a Claude Code tab was closed via Cmd+Q or terminal-close, which doesn't fire `SessionEnd`. The session's last state lingers in the aggregate until cleanup.
+- Quick fix: `bash reset.sh` — kills the daemon, wipes runtime state, returns lamps to idle.
+- Tunable: lower `SESSION_STALE_MINS` in `hue_config.sh` (default 15) for faster auto-cleanup of ghost sessions.
 
 **Pulsing constantly when no prompt is waiting.**
 - You probably wired the `Notification` hook. Remove it (see "Enable the needs input pulse" above for context — Claude Code fires `Notification` on idle timeout, not just permission prompts).

@@ -54,8 +54,9 @@ else
   echo "$STATE" > "$SESSION_FILE"
 fi
 
-# Failsafe: drop any stale session files (mtime > 60 min)
-find "$SESSION_DIR" -name "*.state" -type f -mmin +60 -delete 2>/dev/null
+# Failsafe: drop any stale session files (mtime > SESSION_STALE_MINS).
+# Catches tabs closed via Cmd+Q / terminal close, which never fire SessionEnd.
+find "$SESSION_DIR" -name "*.state" -type f -mmin +"${SESSION_STALE_MINS:-15}" -delete 2>/dev/null
 
 # Aggregate by priority
 ALL_STATES=$(cat "$SESSION_DIR"/*.state 2>/dev/null || true)

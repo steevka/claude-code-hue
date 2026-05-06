@@ -47,6 +47,12 @@ IDLE_TRANSITION=10           # 1.0s fade in
 # Off state
 OFF_TRANSITION=4             # 400ms fade out
 
-# ── Daemon ─────────────────────────────────────────────────────────────────
+# ── Daemon & cleanup ───────────────────────────────────────────────────────
 # Animation daemon auto-exits after this many seconds as a failsafe.
 DAEMON_MAX_RUNTIME=1800      # 30 minutes
+
+# Drop any per-session state file untouched for this many minutes.
+# Catches sessions closed via Cmd+Q / terminal close that never fired
+# SessionEnd. Lower = quicker cleanup of ghost states; higher = tolerates
+# longer reading pauses without dropping you out of the aggregate.
+SESSION_STALE_MINS=15
