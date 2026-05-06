@@ -123,9 +123,25 @@ else
   AGGREGATE=off
 fi
 
-# Debounce: skip if effective state unchanged
+daemon_alive() {
+  [ -f "$PID_FILE" ] || return 1
+  local pid
+  pid=$(cat "$PID_FILE" 2>/dev/null) || return 1
+  [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null
+}
+
+# Debounce: skip the full update path if effective state unchanged.
+# But still self-heal: if state is animated and daemon died, relaunch it.
 LAST=$(cat "$STATE_FILE" 2>/dev/null || true)
 if [ "$AGGREGATE" = "$LAST" ]; then
+  case "$AGGREGATE" in
+    working|needs_input)
+      if ! daemon_alive; then
+        rm -f "$PID_FILE"
+        nohup "$DAEMON" > /dev/null 2>&1 &
+      fi
+      ;;
+  esac
   exit 0
 fi
 echo "$AGGREGATE" > "$STATE_FILE"

@@ -10,7 +10,7 @@ Inspired by [bobek-balinek/claude-lamp](https://github.com/bobek-balinek/claude-
 |---|---|---|
 | **Working** | Blue ↔ purple breathing | `UserPromptSubmit`, `PreToolUse` |
 | **Idle** | Solid warm amber | `SessionStart`, `Stop` |
-| **Needs input** | Amber pulse (off by default) | `Notification` (see Customization) |
+| **Needs input** | Solid amber + brief green flash every 10s | `Notification` (permission requests; idle-timeout filtered out) |
 | **Off** | Lamps off | `SessionEnd` |
 
 Multi-session aware: if you have several Claude Code tabs open, the lamps reflect the highest-priority state across all of them. So one tab idling while another is mid-tool-call still shows the working animation.
@@ -78,24 +78,13 @@ WORKING_HOLD_SECS=5
 
 `*_FADE_DECISECONDS` is in tenths of a second (Hue API native unit). `*_HOLD_SECS` should match — that's how long each color is held before fading to the next.
 
-### Enable the "needs input" pulse
+### The "needs input" attention indicator
 
-Disabled by default because Claude Code's `Notification` hook fires on idle-timeout (after ~60s of waiting), which causes constant phantom pulses while you're reading output.
+Wired by default via the `Notification` hook. The hook fires for permission requests and Claude Code's idle-timeout ("waiting for your input"); we filter the latter out by inspecting the notification message, so only actionable events trigger the lamps.
 
-To enable, add this entry to `~/.claude/settings.json` under `hooks`:
+The visual is deliberately subtle: solid amber base (looks identical to idle most of the time) with a 500ms green flash every 10 seconds. Easy to leave on while you work in another tab.
 
-```json
-"Notification": [
-  {
-    "hooks": [
-      {
-        "type": "command",
-        "command": "/path/to/claude-code-hue/hue_hook.sh needs_input"
-      }
-    ]
-  }
-]
-```
+Tune via `INPUT_FLASH_HUE`, `INPUT_BASE_HOLD_SECS`, `INPUT_FLASH_HOLD_SECS` in `hue_config.sh`.
 
 ## Why these hooks (and not others)
 

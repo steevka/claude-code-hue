@@ -23,6 +23,8 @@ PID_FILE="/tmp/claude_hue_daemon.pid"
 
 echo $$ > "$PID_FILE"
 trap 'rm -f "$PID_FILE"; exit 0' TERM INT
+# Ignore SIGHUP — daemon should survive its launching shell exiting.
+trap '' HUP
 
 START=$(date +%s)
 
