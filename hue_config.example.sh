@@ -30,17 +30,18 @@ WORKING_BRI=200
 WORKING_FADE_DECISECONDS=30  # 3.0s fade per direction
 WORKING_HOLD_SECS=3          # Sleep between PUTs (match the fade time)
 
-# Needs-input state — solid amber base with a brief color flash for attention.
-# Subtle: looks like idle most of the time, but flashes a contrasting color
-# every INPUT_BASE_HOLD_SECS so you notice when you glance up.
-INPUT_HUE=5000                  # Amber base (matches idle hue)
-INPUT_FLASH_HUE=25500           # Green flash
-INPUT_SAT=200                   # Saturation for both base and flash
-INPUT_BRI=200                   # Base (amber) brightness
-INPUT_FLASH_BRI=254             # Flash brightness (a bit punchier)
-INPUT_BASE_HOLD_SECS=10         # How long amber holds between flashes
-INPUT_FLASH_HOLD_SECS=0.5       # Flash duration
-INPUT_TRANSITION_DECISECONDS=2  # 200ms fade in/out of flash
+# Needs-input state — gentle amber ↔ contrast pulsing.
+# Holds long enough on each color that you can tell apart from idle,
+# but soft enough not to fight for attention.
+# Default: amber 5s ↔ purple 2s with 1s fades.
+INPUT_HUE=5000                   # Amber base
+INPUT_FLASH_HUE=50000            # Purple alternate
+INPUT_SAT=200
+INPUT_BRI=200                    # Amber brightness
+INPUT_FLASH_BRI=220              # Purple brightness
+INPUT_BASE_HOLD_SECS=5           # Seconds on amber per cycle (integer only)
+INPUT_FLASH_HOLD_SECS=2          # Seconds on purple per cycle (integer only)
+INPUT_TRANSITION_DECISECONDS=10  # 1s smooth fade between colors
 
 # Idle state — solid, no animation
 IDLE_HUE=5000                # Warm amber

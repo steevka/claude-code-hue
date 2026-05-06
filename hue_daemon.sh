@@ -1,7 +1,8 @@
 #!/bin/bash
 # claude-code-hue → animation daemon.
 # Loops PUTs to the Hue Bridge while state is animated (working / needs_input).
-# Reads /tmp/claude_hue_state every cycle. Exits when state is no longer animated.
+# Uses fine-grained sleep with state checks so it exits cleanly when state
+# changes — without leaving the lamps stuck on whatever color was just fired.
 # Auto-exits after DAEMON_MAX_RUNTIME seconds as a failsafe.
 #
 # Launched in background by hue_hook.sh; not run directly by the user.
@@ -22,8 +23,16 @@ STATE_FILE="/tmp/claude_hue_state"
 PID_FILE="/tmp/claude_hue_daemon.pid"
 
 echo $$ > "$PID_FILE"
-trap 'rm -f "$PID_FILE"; exit 0' TERM INT
-# Ignore SIGHUP — daemon should survive its launching shell exiting.
+# On TERM/INT: kill any in-flight child curls so they can't land at the
+# bridge after we're gone (which would fight the new state PUT the hook
+# is about to fire). Then remove pid file and exit.
+cleanup() {
+  rm -f "$PID_FILE"
+  pkill -P $$ 2>/dev/null || true
+  exit 0
+}
+trap cleanup TERM INT
+# Ignore SIGHUP — survive parent shell exiting.
 trap '' HUP
 
 START=$(date +%s)
@@ -35,6 +44,21 @@ put() {
       "http://${BRIDGE_IP}/api/${HUE_USERNAME}/lights/${ID}/state" \
       -d "$payload" > /dev/null 2>&1 &
   done
+}
+
+# Sleep in 100ms ticks, returning early if state changes away from $expected.
+# Returns 0 if full duration slept; 1 if state changed (caller should bail).
+state_sleep() {
+  local seconds="$1"
+  local expected="$2"
+  local ticks=$((seconds * 10))
+  local i=0
+  while [ "$i" -lt "$ticks" ]; do
+    sleep 0.1
+    i=$((i + 1))
+    [ "$(cat "$STATE_FILE" 2>/dev/null || true)" != "$expected" ] && return 1
+  done
+  return 0
 }
 
 while true; do
@@ -54,17 +78,15 @@ while true; do
   case "$STATE" in
     working)
       put "{\"on\":true,\"hue\":${WORKING_HUE_A},\"sat\":${WORKING_SAT},\"bri\":${WORKING_BRI},\"transitiontime\":${WORKING_FADE_DECISECONDS}}"
-      sleep "$WORKING_HOLD_SECS"
+      state_sleep "$WORKING_HOLD_SECS" working || continue
       put "{\"on\":true,\"hue\":${WORKING_HUE_B},\"sat\":${WORKING_SAT},\"bri\":${WORKING_BRI},\"transitiontime\":${WORKING_FADE_DECISECONDS}}"
-      sleep "$WORKING_HOLD_SECS"
+      state_sleep "$WORKING_HOLD_SECS" working || continue
       ;;
     needs_input)
-      # Solid amber base
       put "{\"on\":true,\"hue\":${INPUT_HUE},\"sat\":${INPUT_SAT},\"bri\":${INPUT_BRI},\"transitiontime\":${INPUT_TRANSITION_DECISECONDS}}"
-      sleep "$INPUT_BASE_HOLD_SECS"
-      # Brief flash in contrast color
+      state_sleep "$INPUT_BASE_HOLD_SECS" needs_input || continue
       put "{\"on\":true,\"hue\":${INPUT_FLASH_HUE},\"sat\":${INPUT_SAT},\"bri\":${INPUT_FLASH_BRI},\"transitiontime\":${INPUT_TRANSITION_DECISECONDS}}"
-      sleep "$INPUT_FLASH_HOLD_SECS"
+      state_sleep "$INPUT_FLASH_HOLD_SECS" needs_input || continue
       ;;
     *)
       rm -f "$PID_FILE"

@@ -130,47 +130,72 @@ daemon_alive() {
   [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null
 }
 
+ensure_daemon() {
+  if ! daemon_alive; then
+    rm -f "$PID_FILE"
+    nohup "$DAEMON" > /dev/null 2>&1 &
+  fi
+}
+
+# Stop the daemon and wait for it to actually exit (its TERM trap kills
+# any in-flight child curls so they can't race ahead of our static PUT).
+stop_daemon() {
+  if [ -f "$PID_FILE" ]; then
+    local pid
+    pid=$(cat "$PID_FILE" 2>/dev/null || true)
+    if [ -n "$pid" ]; then
+      kill "$pid" 2>/dev/null || true
+      local i=0
+      while kill -0 "$pid" 2>/dev/null && [ "$i" -lt 8 ]; do
+        sleep 0.05
+        i=$((i + 1))
+      done
+    fi
+    rm -f "$PID_FILE"
+  fi
+}
+
+# Synchronous PUT: fire all light updates in parallel, then wait for them
+# to complete before returning. Used for static state transitions where
+# we don't want to race with the daemon's last in-flight PUT.
+put_sync() {
+  local payload="$1"
+  local pids=()
+  for ID in "${LIGHT_IDS[@]}"; do
+    curl -s -m 2 -X PUT \
+      "http://${BRIDGE_IP}/api/${HUE_USERNAME}/lights/${ID}/state" \
+      -d "$payload" > /dev/null 2>&1 &
+    pids+=($!)
+  done
+  for pid in "${pids[@]}"; do
+    wait "$pid" 2>/dev/null || true
+  done
+}
+
 # Debounce: skip the full update path if effective state unchanged.
 # But still self-heal: if state is animated and daemon died, relaunch it.
 LAST=$(cat "$STATE_FILE" 2>/dev/null || true)
 if [ "$AGGREGATE" = "$LAST" ]; then
   case "$AGGREGATE" in
-    working|needs_input)
-      if ! daemon_alive; then
-        rm -f "$PID_FILE"
-        nohup "$DAEMON" > /dev/null 2>&1 &
-      fi
-      ;;
+    working|needs_input) ensure_daemon ;;
   esac
   exit 0
 fi
 echo "$AGGREGATE" > "$STATE_FILE"
 
-# Kill any running animation daemon
-if [ -f "$PID_FILE" ]; then
-  OLD_PID=$(cat "$PID_FILE" 2>/dev/null || true)
-  [ -n "$OLD_PID" ] && kill "$OLD_PID" 2>/dev/null || true
-  rm -f "$PID_FILE"
-fi
-
-put() {
-  local payload="$1"
-  for ID in "${LIGHT_IDS[@]}"; do
-    curl -s -m 2 -X PUT \
-      "http://${BRIDGE_IP}/api/${HUE_USERNAME}/lights/${ID}/state" \
-      -d "$payload" > /dev/null 2>&1 &
-  done
-}
-
 case "$AGGREGATE" in
   working|needs_input)
-    nohup "$DAEMON" > /dev/null 2>&1 &
+    # Daemon picks up state changes via state_sleep (within 100ms),
+    # so no need to kill+relaunch on animated→animated transitions.
+    ensure_daemon
     ;;
   idle)
-    put "{\"on\":true,\"hue\":${IDLE_HUE},\"sat\":${IDLE_SAT},\"bri\":${IDLE_BRI},\"transitiontime\":${IDLE_TRANSITION}}"
+    stop_daemon
+    put_sync "{\"on\":true,\"hue\":${IDLE_HUE},\"sat\":${IDLE_SAT},\"bri\":${IDLE_BRI},\"transitiontime\":${IDLE_TRANSITION}}"
     ;;
   off)
-    put "{\"on\":false,\"transitiontime\":${OFF_TRANSITION}}"
+    stop_daemon
+    put_sync "{\"on\":false,\"transitiontime\":${OFF_TRANSITION}}"
     ;;
 esac
 
