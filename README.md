@@ -15,6 +15,8 @@ Inspired by [bobek-balinek/claude-lamp](https://github.com/bobek-balinek/claude-
 
 Multi-session aware: if you have several Claude Code tabs open, the lamps reflect the highest-priority state across all of them. So one tab idling while another is mid-tool-call still shows the working animation.
 
+Brightness is yours to set. The indicator only changes color (hue + saturation), not brightness. Whatever level you've set the bulb to via the Hue app, switch, or any other controller stays put.
+
 ## Prerequisites
 
 - macOS or Linux

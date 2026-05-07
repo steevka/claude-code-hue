@@ -77,15 +77,15 @@ while true; do
   STATE=$(cat "$STATE_FILE" 2>/dev/null || true)
   case "$STATE" in
     working)
-      put "{\"on\":true,\"hue\":${WORKING_HUE_A},\"sat\":${WORKING_SAT},\"bri\":${WORKING_BRI},\"transitiontime\":${WORKING_FADE_DECISECONDS}}"
+      put "{\"on\":true,\"hue\":${WORKING_HUE_A},\"sat\":${WORKING_SAT},\"transitiontime\":${WORKING_FADE_DECISECONDS}}"
       state_sleep "$WORKING_HOLD_SECS" working || continue
-      put "{\"on\":true,\"hue\":${WORKING_HUE_B},\"sat\":${WORKING_SAT},\"bri\":${WORKING_BRI},\"transitiontime\":${WORKING_FADE_DECISECONDS}}"
+      put "{\"on\":true,\"hue\":${WORKING_HUE_B},\"sat\":${WORKING_SAT},\"transitiontime\":${WORKING_FADE_DECISECONDS}}"
       state_sleep "$WORKING_HOLD_SECS" working || continue
       ;;
     needs_input)
-      put "{\"on\":true,\"hue\":${INPUT_HUE},\"sat\":${INPUT_SAT},\"bri\":${INPUT_BRI},\"transitiontime\":${INPUT_TRANSITION_DECISECONDS}}"
+      put "{\"on\":true,\"hue\":${INPUT_HUE},\"sat\":${INPUT_SAT},\"transitiontime\":${INPUT_TRANSITION_DECISECONDS}}"
       state_sleep "$INPUT_BASE_HOLD_SECS" needs_input || continue
-      put "{\"on\":true,\"hue\":${INPUT_FLASH_HUE},\"sat\":${INPUT_SAT},\"bri\":${INPUT_FLASH_BRI},\"transitiontime\":${INPUT_TRANSITION_DECISECONDS}}"
+      put "{\"on\":true,\"hue\":${INPUT_FLASH_HUE},\"sat\":${INPUT_SAT},\"transitiontime\":${INPUT_TRANSITION_DECISECONDS}}"
       state_sleep "$INPUT_FLASH_HOLD_SECS" needs_input || continue
       ;;
     *)

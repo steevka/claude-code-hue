@@ -22,11 +22,15 @@ LIGHT_IDS=(8 9)
 #   hue: 0-65535 (color wheel)   sat: 0-254   bri: 0-254
 #   transitiontime: deciseconds (10 = 1 second)
 
+# By design we do NOT set brightness in any PUT — Hue keeps the bulb at
+# whatever brightness you last set it to (via the Hue app, switch, or any
+# other controller). We only change hue and saturation. Set your bulbs to
+# whatever brightness you like; the indicator respects it.
+
 # Working state — breathing between two colors
 WORKING_HUE_A=46920          # Blue
 WORKING_HUE_B=50000          # Purple
 WORKING_SAT=254
-WORKING_BRI=200
 WORKING_FADE_DECISECONDS=30  # 3.0s fade per direction
 WORKING_HOLD_SECS=3          # Sleep between PUTs (match the fade time)
 
@@ -37,8 +41,6 @@ WORKING_HOLD_SECS=3          # Sleep between PUTs (match the fade time)
 INPUT_HUE=5000                   # Amber base
 INPUT_FLASH_HUE=50000            # Purple alternate
 INPUT_SAT=200
-INPUT_BRI=200                    # Amber brightness
-INPUT_FLASH_BRI=220              # Purple brightness
 INPUT_BASE_HOLD_SECS=5           # Seconds on amber per cycle (integer only)
 INPUT_FLASH_HOLD_SECS=2          # Seconds on purple per cycle (integer only)
 INPUT_TRANSITION_DECISECONDS=10  # 1s smooth fade between colors
@@ -46,7 +48,6 @@ INPUT_TRANSITION_DECISECONDS=10  # 1s smooth fade between colors
 # Idle state — solid, no animation
 IDLE_HUE=5000                # Warm amber
 IDLE_SAT=200
-IDLE_BRI=160
 IDLE_TRANSITION=10           # 1.0s fade in
 
 # Off state

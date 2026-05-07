@@ -191,7 +191,7 @@ case "$AGGREGATE" in
     ;;
   idle)
     stop_daemon
-    put_sync "{\"on\":true,\"hue\":${IDLE_HUE},\"sat\":${IDLE_SAT},\"bri\":${IDLE_BRI},\"transitiontime\":${IDLE_TRANSITION}}"
+    put_sync "{\"on\":true,\"hue\":${IDLE_HUE},\"sat\":${IDLE_SAT},\"transitiontime\":${IDLE_TRANSITION}}"
     ;;
   off)
     stop_daemon
