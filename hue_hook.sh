@@ -293,9 +293,18 @@ case "$AGGREGATE" in
     ;;
   idle)
     stop_daemon
-    if ! restore_lights; then
-      put_sync "{\"on\":true,\"hue\":${IDLE_HUE},\"sat\":${IDLE_SAT},\"transitiontime\":${STATE_TRANSITION_DECISECONDS:-2}}"
-    fi
+    # Only restore on animated→idle. On off→idle (SessionStart, or any
+    # first-time entry), the snapshot is from a prior session and may no
+    # longer reflect reality — the user could have changed colors via the
+    # Hue app, or a schedule could have fired. Leave the lights alone; the
+    # next animated edge will re-snapshot the live bridge state.
+    case "$LAST" in
+      working|needs_input)
+        if ! restore_lights; then
+          put_sync "{\"on\":true,\"hue\":${IDLE_HUE},\"sat\":${IDLE_SAT},\"transitiontime\":${STATE_TRANSITION_DECISECONDS:-2}}"
+        fi
+        ;;
+    esac
     ;;
   off)
     stop_daemon
