@@ -44,10 +44,15 @@ INPUT_BASE_HOLD_SECS=3           # Seconds on blue per cycle (integer only)
 INPUT_FLASH_HOLD_SECS=3          # Seconds on green per cycle (integer only)
 INPUT_TRANSITION_DECISECONDS=30  # 3s smooth fade between colors
 
-# Idle state — solid, no animation
-IDLE_HUE=5000                # Warm amber
-IDLE_SAT=200
-IDLE_TRANSITION=10           # 1.0s fade in
+# Idle state — solid, no animation.
+# By default the lamps return to whatever color/on-state they had right
+# before Claude started working (snapshot is taken at the resting→animated
+# edge, so colors you set during long idle stretches via the Hue app are
+# preserved). These values are used only as a fallback when no snapshot
+# exists yet (first run, or after `bash reset.sh`).
+IDLE_HUE=5000                # Warm amber (fallback only)
+IDLE_SAT=200                 # (fallback only)
+IDLE_TRANSITION=10           # 1.0s fade in (used for both snapshot restore and fallback)
 
 # Off state
 OFF_TRANSITION=4             # 400ms fade out

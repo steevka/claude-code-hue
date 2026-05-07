@@ -1,6 +1,6 @@
 # claude-code-hue
 
-Turn your Philips Hue lamps into a status indicator for [Claude Code](https://docs.anthropic.com/en/docs/claude-code) sessions. Lamps breathe when Claude is working, glow amber when it's done, switch off when the session ends.
+Turn your Philips Hue lamps into a status indicator for [Claude Code](https://docs.anthropic.com/en/docs/claude-code) sessions. Lamps breathe when Claude is working, return to whatever color you had them on when it's done, switch off when the session ends.
 
 Inspired by [bobek-balinek/claude-lamp](https://github.com/bobek-balinek/claude-lamp), which does the same thing for Moonside lamps over BLE. This is the HTTP/Hue Bridge variant — pure bash, no Python or BLE dependencies.
 
@@ -9,7 +9,7 @@ Inspired by [bobek-balinek/claude-lamp](https://github.com/bobek-balinek/claude-
 | State | Lamps show | Triggered by |
 |---|---|---|
 | **Working** | Blue ↔ purple breathing | Prompt submit, tool use (Bash, Read, Write, Edit, Grep, WebFetch, etc.) |
-| **Idle** | Solid warm amber | Claude finishes responding, session start, idle prompt |
+| **Idle** | Restores the color you had set before Claude started (snapshot is captured each time Claude leaves rest); falls back to `IDLE_HUE` if no snapshot exists | Claude finishes responding, session start, idle prompt |
 | **Needs input** | Blue ↔ green breathing | Permission request, plan approval, question, notification |
 | **Off** | Lamps off | Session end |
 

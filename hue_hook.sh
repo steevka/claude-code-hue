@@ -24,6 +24,7 @@ DAEMON="$SCRIPT_DIR/hue_daemon.sh"
 SESSION_DIR="/tmp/claude_hue"
 STATE_FILE="/tmp/claude_hue_state"
 PID_FILE="/tmp/claude_hue_daemon.pid"
+SNAPSHOT_FILE="/tmp/claude_hue/snapshot.txt"
 
 mkdir -p "$SESSION_DIR"
 
@@ -155,6 +156,58 @@ stop_daemon() {
   fi
 }
 
+# Capture each light's current color state from the bridge so we can
+# restore it on the next idle transition. Skips brightness (per design,
+# we never touch bri). Snapshot is taken at the moment we leave the
+# resting state — so any color the user set via the Hue app while idle
+# is preserved across the upcoming animation.
+snapshot_lights() {
+  : > "$SNAPSHOT_FILE"
+  for ID in "${LIGHT_IDS[@]}"; do
+    local body payload
+    body=$(curl -s -m 2 "http://${BRIDGE_IP}/api/${HUE_USERNAME}/lights/${ID}" 2>/dev/null) || continue
+    [ -z "$body" ] && continue
+    payload=$(printf '%s' "$body" | python3 -c '
+import sys, json
+try:
+    d = json.load(sys.stdin)
+    s = d.get("state", {})
+    out = {"on": bool(s.get("on", True))}
+    mode = s.get("colormode")
+    if mode == "ct" and "ct" in s:
+        out["ct"] = s["ct"]
+    elif "hue" in s and "sat" in s:
+        out["hue"] = s["hue"]
+        out["sat"] = s["sat"]
+    print(json.dumps(out, separators=(",", ":")))
+except Exception:
+    pass
+' 2>/dev/null)
+    [ -n "$payload" ] && printf '%s|%s\n' "$ID" "$payload" >> "$SNAPSHOT_FILE"
+  done
+}
+
+# Restore each light from the snapshot. Returns 0 on success, 1 if no
+# usable snapshot exists (caller should fall back to IDLE_HUE/IDLE_SAT).
+restore_lights() {
+  [ -s "$SNAPSHOT_FILE" ] || return 1
+  local pids=() id payload with_trans
+  while IFS='|' read -r id payload; do
+    [ -z "$id" ] && continue
+    [ -z "$payload" ] && continue
+    # Inject transitiontime by replacing the trailing `}` with `,"transitiontime":N}`
+    with_trans="${payload%\}},\"transitiontime\":${IDLE_TRANSITION}}"
+    curl -s -m 2 -X PUT \
+      "http://${BRIDGE_IP}/api/${HUE_USERNAME}/lights/${id}/state" \
+      -d "$with_trans" > /dev/null 2>&1 &
+    pids+=($!)
+  done < "$SNAPSHOT_FILE"
+  for pid in "${pids[@]}"; do
+    wait "$pid" 2>/dev/null || true
+  done
+  return 0
+}
+
 # Synchronous PUT: fire all light updates in parallel, then wait for them
 # to complete before returning. Used for static state transitions where
 # we don't want to race with the daemon's last in-flight PUT.
@@ -185,13 +238,22 @@ echo "$AGGREGATE" > "$STATE_FILE"
 
 case "$AGGREGATE" in
   working|needs_input)
+    # On the resting→animated edge, snapshot the lights' current color so
+    # we can put it back on the next idle transition. Skip if we're just
+    # animated→animated (snapshot already taken on the original entry).
+    case "$LAST" in
+      working|needs_input) ;;
+      *) snapshot_lights ;;
+    esac
     # Daemon picks up state changes via state_sleep (within 100ms),
     # so no need to kill+relaunch on animated→animated transitions.
     ensure_daemon
     ;;
   idle)
     stop_daemon
-    put_sync "{\"on\":true,\"hue\":${IDLE_HUE},\"sat\":${IDLE_SAT},\"transitiontime\":${IDLE_TRANSITION}}"
+    if ! restore_lights; then
+      put_sync "{\"on\":true,\"hue\":${IDLE_HUE},\"sat\":${IDLE_SAT},\"transitiontime\":${IDLE_TRANSITION}}"
+    fi
     ;;
   off)
     stop_daemon
