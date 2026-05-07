@@ -37,6 +37,12 @@ trap '' HUP
 
 START=$(date +%s)
 
+# Track previous state so we can use a fast transition on the first PUT
+# after a state change (snap into the new color), then revert to the
+# slow in-state breathing fade.
+LAST_STATE=""
+STATE_TRANS="${STATE_TRANSITION_DECISECONDS:-2}"
+
 put() {
   local payload="$1"
   for ID in "${LIGHT_IDS[@]}"; do
@@ -75,15 +81,27 @@ while true; do
   fi
 
   STATE=$(cat "$STATE_FILE" 2>/dev/null || true)
+
+  # First PUT after a state change uses STATE_TRANS (fast snap).
+  # Subsequent PUTs in the same state use the slow breathing fade.
+  if [ "$STATE" != "$LAST_STATE" ]; then
+    ENTRY_TRANS="$STATE_TRANS"
+  else
+    ENTRY_TRANS=""
+  fi
+  LAST_STATE="$STATE"
+
   case "$STATE" in
     working)
-      put "{\"on\":true,\"hue\":${WORKING_HUE_A},\"sat\":${WORKING_SAT},\"transitiontime\":${WORKING_FADE_DECISECONDS}}"
+      TRANS="${ENTRY_TRANS:-$WORKING_FADE_DECISECONDS}"
+      put "{\"on\":true,\"hue\":${WORKING_HUE_A},\"sat\":${WORKING_SAT},\"transitiontime\":${TRANS}}"
       state_sleep "$WORKING_HOLD_SECS" working || continue
       put "{\"on\":true,\"hue\":${WORKING_HUE_B},\"sat\":${WORKING_SAT},\"transitiontime\":${WORKING_FADE_DECISECONDS}}"
       state_sleep "$WORKING_HOLD_SECS" working || continue
       ;;
     needs_input)
-      put "{\"on\":true,\"hue\":${INPUT_HUE},\"sat\":${INPUT_SAT},\"transitiontime\":${INPUT_TRANSITION_DECISECONDS}}"
+      TRANS="${ENTRY_TRANS:-$INPUT_TRANSITION_DECISECONDS}"
+      put "{\"on\":true,\"hue\":${INPUT_HUE},\"sat\":${INPUT_SAT},\"transitiontime\":${TRANS}}"
       state_sleep "$INPUT_BASE_HOLD_SECS" needs_input || continue
       put "{\"on\":true,\"hue\":${INPUT_FLASH_HUE},\"sat\":${INPUT_SAT},\"transitiontime\":${INPUT_TRANSITION_DECISECONDS}}"
       state_sleep "$INPUT_FLASH_HOLD_SECS" needs_input || continue

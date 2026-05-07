@@ -94,9 +94,40 @@ Edge cases:
 
 Wired by default via the `Notification` hook. The hook fires for permission requests and Claude Code's idle-timeout ("waiting for your input"); we filter the latter out by inspecting the notification message, so only actionable events trigger the lamps.
 
-The visual is deliberately subtle: solid amber base (looks identical to idle most of the time) with a 500ms green flash every 10 seconds. Easy to leave on while you work in another tab.
+The visual is a blue ↔ green breathing pattern — same rhythm as the working animation but a different color pair, so "Claude needs you" reads distinctly from "Claude is thinking."
 
-Tune via `INPUT_FLASH_HUE`, `INPUT_BASE_HOLD_SECS`, `INPUT_FLASH_HOLD_SECS` in `hue_config.sh`.
+Tune via `INPUT_HUE`, `INPUT_FLASH_HUE`, `INPUT_BASE_HOLD_SECS`, `INPUT_FLASH_HOLD_SECS`, `INPUT_TRANSITION_DECISECONDS` in `hue_config.sh`.
+
+### Snappy mode-to-mode transitions
+
+The breathing fade inside an animation (`WORKING_FADE_DECISECONDS`, `INPUT_TRANSITION_DECISECONDS`) is the slow aesthetic. The transition *between* modes (idle → working, working ↔ needs_input, anything → idle) uses a separate, faster value:
+
+```bash
+STATE_TRANSITION_DECISECONDS=2  # 200ms — feels instant
+```
+
+So Claude states "snap" into focus and then breathe. Raise this if the snap feels too sharp.
+
+### Solid mode (no animation)
+
+If you don't want any motion, switch to solid mode. The daemon is skipped entirely; each state just snaps to one color.
+
+```bash
+./mode.sh solid       # switch to solid
+./mode.sh breathing   # switch back
+./mode.sh toggle      # flip
+./mode.sh             # show current
+```
+
+Solid colors are configured separately so flipping back and forth doesn't disturb your breathing settings:
+
+```bash
+INDICATOR_MODE=solid
+SOLID_WORKING_HUE=50000   # Purple
+SOLID_INPUT_HUE=46920     # Blue
+```
+
+Idle still restores your snapshot color in either mode.
 
 ## Hook coverage
 
@@ -124,6 +155,7 @@ claude-code-hue/
 ├── setup.sh             # interactive bridge discovery + key creation + light picker
 ├── install-hooks.sh     # merges hook entries into ~/.claude/settings.json
 ├── reset.sh             # wipe runtime state, kill daemon, return to idle
+├── mode.sh              # toggle INDICATOR_MODE between breathing and solid
 ├── LICENSE
 └── README.md
 ```

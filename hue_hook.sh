@@ -63,6 +63,17 @@ fi
 
 SESSION_FILE="$SESSION_DIR/${SESSION_ID}.state"
 
+# Manual / CLI-driven invocations get a "manual-*" session id. They should
+# act on this invocation (so terminal tests still work) but must NOT linger
+# in the aggregator across future hook events — otherwise a stale `bash
+# hue_hook.sh needs_input` from a debugging session pins the lights to
+# blue for 30 minutes. Clean up the file at exit.
+case "$SESSION_ID" in
+  manual-*)
+    trap 'rm -f "$SESSION_FILE"' EXIT
+    ;;
+esac
+
 # Update this session's slot
 if [ "$STATE" = "off" ]; then
   rm -f "$SESSION_FILE"
@@ -196,12 +207,13 @@ except Exception:
 # usable snapshot exists (caller should fall back to IDLE_HUE/IDLE_SAT).
 restore_lights() {
   [ -s "$SNAPSHOT_FILE" ] || return 1
-  local pids=() id payload with_trans
+  local pids=() id payload with_trans trans
+  trans="${STATE_TRANSITION_DECISECONDS:-2}"
   while IFS='|' read -r id payload; do
     [ -z "$id" ] && continue
     [ -z "$payload" ] && continue
     # Inject transitiontime by replacing the trailing `}` with `,"transitiontime":N}`
-    with_trans="${payload%\}},\"transitiontime\":${IDLE_TRANSITION}}"
+    with_trans="${payload%\}},\"transitiontime\":${trans}}"
     curl -s -m 2 -X PUT \
       "http://${BRIDGE_IP}/api/${HUE_USERNAME}/lights/${id}/state" \
       -d "$with_trans" > /dev/null 2>&1 &
@@ -211,6 +223,31 @@ restore_lights() {
     wait "$pid" 2>/dev/null || true
   done
   return 0
+}
+
+# Pick the right solid-mode payload for an animated state and fire it.
+put_solid_for_state() {
+  case "$1" in
+    working)
+      put_sync "{\"on\":true,\"hue\":${SOLID_WORKING_HUE},\"sat\":${SOLID_WORKING_SAT},\"transitiontime\":${STATE_TRANSITION_DECISECONDS:-2}}"
+      ;;
+    needs_input)
+      put_sync "{\"on\":true,\"hue\":${SOLID_INPUT_HUE},\"sat\":${SOLID_INPUT_SAT},\"transitiontime\":${STATE_TRANSITION_DECISECONDS:-2}}"
+      ;;
+  esac
+}
+
+# Apply the indicator for an animated state. Solid mode snaps to a
+# single color; breathing mode hands off to the animation daemon.
+# Used by both the debounce self-heal path and the main state-change
+# dispatch so the two stay in lockstep.
+apply_animated() {
+  if [ "${INDICATOR_MODE:-breathing}" = "solid" ]; then
+    stop_daemon
+    put_solid_for_state "$1"
+  else
+    ensure_daemon
+  fi
 }
 
 # Synchronous PUT: fire all light updates in parallel, then wait for them
@@ -231,11 +268,13 @@ put_sync() {
 }
 
 # Debounce: skip the full update path if effective state unchanged.
-# But still self-heal: if state is animated and daemon died, relaunch it.
+# But still self-heal: in breathing mode, relaunch the daemon if it died;
+# in solid mode, ensure no leftover daemon is still animating and re-PUT
+# the solid color in case the user just flipped mode mid-state.
 LAST=$(cat "$STATE_FILE" 2>/dev/null || true)
 if [ "$AGGREGATE" = "$LAST" ]; then
   case "$AGGREGATE" in
-    working|needs_input) ensure_daemon ;;
+    working|needs_input) apply_animated "$AGGREGATE" ;;
   esac
   exit 0
 fi
@@ -250,14 +289,12 @@ case "$AGGREGATE" in
       working|needs_input) ;;
       *) snapshot_lights ;;
     esac
-    # Daemon picks up state changes via state_sleep (within 100ms),
-    # so no need to kill+relaunch on animated→animated transitions.
-    ensure_daemon
+    apply_animated "$AGGREGATE"
     ;;
   idle)
     stop_daemon
     if ! restore_lights; then
-      put_sync "{\"on\":true,\"hue\":${IDLE_HUE},\"sat\":${IDLE_SAT},\"transitiontime\":${IDLE_TRANSITION}}"
+      put_sync "{\"on\":true,\"hue\":${IDLE_HUE},\"sat\":${IDLE_SAT},\"transitiontime\":${STATE_TRANSITION_DECISECONDS:-2}}"
     fi
     ;;
   off)

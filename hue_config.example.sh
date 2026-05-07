@@ -27,6 +27,24 @@ LIGHT_IDS=(8 9)
 # other controller). We only change hue and saturation. Set your bulbs to
 # whatever brightness you like; the indicator respects it.
 
+# Snappy transition between modes (idle ↔ working ↔ needs_input). Used for
+# the FIRST PUT after a state change — so entering and leaving animations
+# feels instant. The slow breathing fade inside each animation is still
+# controlled by WORKING_FADE_DECISECONDS / INPUT_TRANSITION_DECISECONDS.
+STATE_TRANSITION_DECISECONDS=2  # 200ms — feels instant; raise for softer mode switches
+
+# Indicator mode: "breathing" (default) animates working/needs_input via
+# the daemon; "solid" skips the daemon and just snaps to a single color
+# per state. Useful when you want zero motion — or when you want the
+# absolute lowest-latency feedback.
+INDICATOR_MODE=breathing
+
+# Colors used when INDICATOR_MODE=solid (ignored otherwise).
+SOLID_WORKING_HUE=50000   # Purple
+SOLID_WORKING_SAT=254
+SOLID_INPUT_HUE=46920     # Blue
+SOLID_INPUT_SAT=254
+
 # Working state — breathing between two colors
 WORKING_HUE_A=46920          # Blue
 WORKING_HUE_B=50000          # Purple
