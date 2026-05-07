@@ -10,7 +10,7 @@ Inspired by [bobek-balinek/claude-lamp](https://github.com/bobek-balinek/claude-
 |---|---|---|
 | **Working** | Blue ↔ purple breathing | Prompt submit, tool use (Bash, Read, Write, Edit, Grep, WebFetch, etc.) |
 | **Idle** | Solid warm amber | Claude finishes responding, session start, idle prompt |
-| **Needs input** | Amber 5s ↔ purple 2s pulsing | Permission request, plan approval, question, notification |
+| **Needs input** | Blue ↔ green breathing | Permission request, plan approval, question, notification |
 | **Off** | Lamps off | Session end |
 
 Multi-session aware: if you have several Claude Code tabs open, the lamps reflect the highest-priority state across all of them. So one tab idling while another is mid-tool-call still shows the working animation.

@@ -34,16 +34,15 @@ WORKING_SAT=254
 WORKING_FADE_DECISECONDS=30  # 3.0s fade per direction
 WORKING_HOLD_SECS=3          # Sleep between PUTs (match the fade time)
 
-# Needs-input state — gentle amber ↔ contrast pulsing.
-# Holds long enough on each color that you can tell apart from idle,
-# but soft enough not to fight for attention.
-# Default: amber 5s ↔ purple 2s with 1s fades.
-INPUT_HUE=5000                   # Amber base
-INPUT_FLASH_HUE=50000            # Purple alternate
-INPUT_SAT=200
-INPUT_BASE_HOLD_SECS=5           # Seconds on amber per cycle (integer only)
-INPUT_FLASH_HOLD_SECS=2          # Seconds on purple per cycle (integer only)
-INPUT_TRANSITION_DECISECONDS=10  # 1s smooth fade between colors
+# Needs-input state — same breathe rhythm as working (blue ↔ green
+# instead of blue ↔ purple). Distinguishes "Claude needs you" from
+# "Claude is thinking" while staying in the same family of motion.
+INPUT_HUE=46920                  # Blue
+INPUT_FLASH_HUE=25500            # Green
+INPUT_SAT=254
+INPUT_BASE_HOLD_SECS=3           # Seconds on blue per cycle (integer only)
+INPUT_FLASH_HOLD_SECS=3          # Seconds on green per cycle (integer only)
+INPUT_TRANSITION_DECISECONDS=30  # 3s smooth fade between colors
 
 # Idle state — solid, no animation
 IDLE_HUE=5000                # Warm amber
