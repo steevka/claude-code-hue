@@ -174,7 +174,12 @@ try:
     s = d.get("state", {})
     out = {"on": bool(s.get("on", True))}
     mode = s.get("colormode")
-    if mode == "ct" and "ct" in s:
+    # Hue app uses xy by default; phone color picker sends xy.
+    # hue/sat fields can be stale when colormode is xy or ct, so always
+    # honor colormode when picking which fields to round-trip.
+    if mode == "xy" and isinstance(s.get("xy"), list) and len(s["xy"]) == 2:
+        out["xy"] = s["xy"]
+    elif mode == "ct" and "ct" in s:
         out["ct"] = s["ct"]
     elif "hue" in s and "sat" in s:
         out["hue"] = s["hue"]

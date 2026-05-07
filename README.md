@@ -9,7 +9,7 @@ Inspired by [bobek-balinek/claude-lamp](https://github.com/bobek-balinek/claude-
 | State | Lamps show | Triggered by |
 |---|---|---|
 | **Working** | Blue ↔ purple breathing | Prompt submit, tool use (Bash, Read, Write, Edit, Grep, WebFetch, etc.) |
-| **Idle** | Restores the color you had set before Claude started (snapshot is captured each time Claude leaves rest); falls back to `IDLE_HUE` if no snapshot exists | Claude finishes responding, session start, idle prompt |
+| **Idle** | Restores whatever color the lamps were before Claude started working (set red via the Hue app at midnight → lamps go back to red on idle). Falls back to `IDLE_HUE` (warm amber) on first run or after `bash reset.sh`. | Claude finishes responding, session start, idle prompt |
 | **Needs input** | Blue ↔ green breathing | Permission request, plan approval, question, notification |
 | **Off** | Lamps off | Session end |
 
@@ -79,6 +79,16 @@ WORKING_HOLD_SECS=5
 ```
 
 `*_FADE_DECISECONDS` is in tenths of a second (Hue API native unit). `*_HOLD_SECS` should match — that's how long each color is held before fading to the next.
+
+### Idle color preservation
+
+The first time Claude transitions out of rest (idle → working/needs_input), the daemon GETs each lamp's current state from the Hue Bridge and saves it to `/tmp/claude_hue/snapshot.txt`. On the next idle, those values are PUT back. So whatever color you had set via the Hue app, switch, or any other controller is what you get back when Claude finishes.
+
+Color modes handled: `xy` (the Hue app's default — accurate color), `ct` (color temperature), and `hs` (hue/saturation). Brightness is never touched.
+
+Edge cases:
+- First ever run, or after `bash reset.sh`: snapshot doesn't exist, so idle falls back to `IDLE_HUE` / `IDLE_SAT` (warm amber by default).
+- If you change a lamp's color via the Hue app *during* an animation, the daemon's per-3-second PUTs will overwrite it. Set colors during idle, not during work.
 
 ### The "needs input" attention indicator
 
